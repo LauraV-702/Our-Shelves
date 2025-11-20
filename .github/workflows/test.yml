@@ -1,0 +1,14 @@
+name: CI/CD Pipeline
+
+on: 
+    push:
+        branches: [ main, auto-test-pipeline ]
+    pull_request:
+        branches: [ main ] 
+
+jobs:
+    backend-tests:
+    frontend-tests:
+    e2e-tests:
+    deploy:
+        
