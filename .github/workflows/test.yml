@@ -13,16 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
       - name: Start database
         run: docker compose up -d db
 
-      - name: Wait for database to be ready
+      - name: Wait for MySQL
         run: |
-          echo "Waiting for MySQL to be ready..."
-          timeout 60 bash -c 'until docker compose exec -T db mysqladmin ping -h localhost -pRootpassword --silent; do sleep 2; done'
+          echo "Waiting for MySQL..."
+          timeout 60 bash -c 'until docker compose exec -T db mysqladmin ping --silent; do sleep 2; done'
 
-      - name: Run backend tests in container
-        run: docker compose run --rm backend npm test
+      - name: Run backend tests
+        run: docker compose run --rm api npm test
+
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -30,8 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run frontend tests in container
+      - name: Run frontend tests
         run: docker compose run --rm frontend npm test
+
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -43,22 +48,25 @@ jobs:
       - name: Build and start all services
         run: docker compose up -d --build
 
-      - name: Wait for services to be ready
+      - name: Wait for backend
         run: |
           echo "Waiting for backend..."
-          timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:3000/health; do sleep 3; done'
 
+      - name: Wait for frontend
+        run: |
           echo "Waiting for frontend..."
-          timeout 60 bash -c 'until curl -sf http://localhost:3000; do sleep 2; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:5173; do sleep 3; done'
 
-      - name: Run E2E tests in container
+      - name: Run Cypress (inside frontend container)
         run: docker compose run --rm \
-          -e CYPRESS_baseUrl=http://frontend:3000 \
-          e2e npm run cypress:run
+          -e CYPRESS_baseUrl=http://frontend:5173 \
+          frontend npm run cypress:run
 
       - name: Stop services
         if: always()
         run: docker compose down
+
 
   deploy:
     runs-on: ubuntu-latest
@@ -77,38 +85,34 @@ jobs:
           script: |
             PROJECT_DIR="/home/projects/test-ci-cd-demo"
 
+            echo "Updating project directory..."
             mkdir -p $PROJECT_DIR
             cd $PROJECT_DIR
 
             if [ -d ".git" ]; then
-              echo "Pulling latest changes..."
               git pull origin main
             else
-              echo "Cloning repository..."
               git clone https://github.com/${{ github.repository }}.git .
             fi
 
-            echo "Setting up production environment..."
+            echo "Applying production environment..."
             cp .env.production .env
 
-            echo "Stopping existing containers..."
+            echo "Restarting containers..."
             docker compose down || true
-
-            echo "Building and starting containers..."
             docker compose up -d --build
 
-            echo "Waiting for database..."
-            timeout 60 bash -c 'until docker compose exec -T db mysqladmin ping -h localhost -pRootpassword --silent; do sleep 2; done'
+            echo "Waiting for MySQL..."
+            timeout 60 bash -c 'until docker compose exec -T db mysqladmin ping --silent; do sleep 3; done'
 
             echo "Waiting for backend..."
-            timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+            timeout 60 bash -c 'until curl -sf http://localhost:3000/health; do sleep 3; done'
 
             echo "Waiting for frontend..."
-            timeout 60 bash -c 'until curl -sf http://localhost:3000; do sleep 2; done'
+            timeout 60 bash -c 'until curl -sf http://localhost:5173; do sleep 3; done'
 
-            echo "Deployment verification:"
+            echo "Deployment completed."
             docker compose ps
 
-            echo "Cleaning up old Docker images..."
+            echo "Cleaning Docker images..."
             docker image prune -f
-
