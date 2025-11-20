@@ -1,14 +1,118 @@
 name: CI/CD Pipeline
 
-on: 
-    push:
-        branches: [ main, auto-test-pipeline ]
-    pull_request:
-        branches: [ main ] 
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-    backend-tests:
-    frontend-tests:
-    e2e-tests:
-    deploy:
-        
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start database
+        run: docker compose up -d db
+
+      - name: Wait for database to be ready
+        run: |
+          echo "Waiting for MySQL to be ready..."
+          timeout 60 bash -c 'until docker compose exec -T db mysqladmin ping -h localhost -pRootpassword --silent; do sleep 2; done'
+
+      - name: Run backend tests in container
+        run: docker compose run --rm backend npm test
+
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run frontend tests in container
+        run: docker compose run --rm frontend npm test
+
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start all services
+        run: docker compose up -d --build
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for backend..."
+          timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+
+          echo "Waiting for frontend..."
+          timeout 60 bash -c 'until curl -sf http://localhost:3000; do sleep 2; done'
+
+      - name: Run E2E tests in container
+        run: docker compose run --rm \
+          -e CYPRESS_baseUrl=http://frontend:3000 \
+          e2e npm run cypress:run
+
+      - name: Stop services
+        if: always()
+        run: docker compose down
+
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [e2e-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Digital Ocean VM
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          password: ${{ secrets.VM_PASSWORD }}
+          script: |
+            PROJECT_DIR="/home/projects/test-ci-cd-demo"
+
+            # Create directory if missing
+            mkdir -p $PROJECT_DIR
+            cd $PROJECT_DIR
+
+            # Clone or update repo
+            if [ -d ".git" ]; then
+              echo "Pulling latest changes..."
+              git pull origin main
+            else
+              echo "Cloning repository..."
+              git clone https://github.com/${{ github.repository }}.git .
+            fi
+
+            echo "Setting up production environment..."
+            cp .env.production .env
+
+            echo "Stopping existing containers..."
+            docker compose down || true
+
+            echo "Building and starting containers..."
+            docker compose up -d --build
+
+            echo "Waiting for database..."
+            timeout 60 bash -c 'until docker compose exec -T db mysqladmin ping -h localhost -pRootpassword --silent; do sleep 2; done'
+
+            echo "Waiting for backend..."
+            timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+
+            echo "Waiting for frontend..."
+            timeout 60 bash -c 'until curl -sf http://localhost:3000; do sleep 2; done'
+
+            echo "Deployment verification:"
+            docker compose ps
+
+            echo "Cleaning up old Docker images..."
+            docker image prune -f
