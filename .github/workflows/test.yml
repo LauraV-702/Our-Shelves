@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, auto-test-pipeline ]
   pull_request:
     branches: [ main ]
 
@@ -112,4 +112,3 @@ jobs:
             echo "Cleaning up old Docker images..."
             docker image prune -f
 
-            
