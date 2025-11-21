@@ -1,110 +1,64 @@
-name: CI Pipeline
-
+name: CI/CD Pipeline
+ 
 on:
   push:
     branches: [ main, auto-test-pipeline ]
   pull_request:
     branches: [ main ]
-
+ 
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
-
+ 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm install
-
+ 
+      - name: Start database
+        run: docker compose up -d db
+ 
       - name: Run backend unit tests
-        working-directory: backend
-        run: npm test
-
-
+        run: docker compose run --rm api npm test
+ 
   frontend-tests:
     runs-on: ubuntu-latest
-    needs: backend-tests   # 🔗 CONNECTED to backend
-
+ 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install
-
-      - name: Run frontend unit tests
-        working-directory: frontend
-        run: npm test
-
-
+ 
+      - name: Run frontend tests
+        run: docker compose run --rm frontend npm test
+ 
   integration-tests:
     runs-on: ubuntu-latest
-    needs: frontend-tests   # 🔗 CONNECTED in sequence
-
+    needs: backend-tests
+ 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Start ONLY the database container
+ 
+      - name: Start database
         run: docker compose up -d db
-
-      - name: Wait for MySQL
-        run: |
-          for i in {1..30}; do
-            if docker exec mysql_container mysqladmin ping --silent; then
-              echo "MySQL is ready!"
-              break
-            fi
-            echo "Waiting for MySQL..."
-            sleep 2
-          done
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm install
-
-      - name: Run backend integration tests
-        working-directory: backend
+ 
+      - name: Run integration tests (skip Testcontainers)
         env:
-          NODE_ENV: test
-        run: npm run test:integration
-
-      - name: Stop DB
-        if: always()
-        run: docker compose down
-
-
+          JEST_SKIP_CONTAINER: "1"
+        run: docker compose run --rm api npm run test:integration
+ 
   e2e-tests:
     runs-on: ubuntu-latest
-    needs: integration-tests   # 🔗 FINAL connected stage
-
+    needs: [frontend-tests, integration-tests]
+ 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Start FULL STACK (frontend + backend + db)
+ 
+      - name: Start full stack
         run: docker compose up -d --build
-
-      - name: Show running services
+ 
+      - name: Check running services
         run: docker compose ps
-
-      - name: Install Cypress deps
-        working-directory: frontend
-        run: npm install
-
-      - name: Run Cypress E2E tests
-        working-directory: frontend
-        run: npm run cypress:run
-
-      - name: Stop stack
+ 
+      - name: Run Cypress tests
+        run: docker compose run --rm frontend npm run cypress:run
+ 
+      - name: Stop services
         if: always()
         run: docker compose down
