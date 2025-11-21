@@ -15,6 +15,10 @@ A reading tracker web application that allows users to search for books using th
 **Sprint 4:**
 - Tav
 - Tia
+
+**Sprint 5:**
+- Laura
+- Diana
 ---
 
 ## Project Description
@@ -340,3 +344,17 @@ docker compose down
 
 ## License
 This project is for educational use as part of a student project at Green River College.
+
+### CI/CD Pipeline
+
+This project uses GitHub Actions to automatically run tests on pull requests and pushes to `main` and `dev` branches. The workflow runs:
+
+STAGE 1:
+- Backend unit tests
+- Frontend unit tests
+
+STAGE 2:
+- Integration tests
+- End-to-end (Cypress) tests
+
+Test results are visible in the GitHub Actions tab.
