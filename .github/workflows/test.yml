@@ -33,6 +33,19 @@ jobs:
         run: docker compose run --rm frontend npm test
 
 
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: backend-tests 
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start database
+        run: docker compose up -d db
+
+      - name: Run backend integration tests
+        run: docker compose run --rm api npm run test:integration
+
   e2e-tests:
     runs-on: ubuntu-latest
     needs: [backend-tests, frontend-tests]
@@ -52,36 +65,3 @@ jobs:
       - name: Stop services
         if: always()
         run: docker compose down
-
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: [e2e-tests]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Digital Ocean VM
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USERNAME }}
-          password: ${{ secrets.VM_PASSWORD }}
-          script: |
-            PROJECT_DIR="/home/projects/test-ci-cd-demo"
-
-            mkdir -p $PROJECT_DIR
-            cd $PROJECT_DIR
-
-            if [ -d ".git" ]; then
-              git pull origin main
-            else
-              git clone https://github.com/${{ github.repository }}.git .
-            fi
-
-            cp .env.production .env
-            docker compose down || true
-            docker compose up -d --build
-            docker compose ps
-            docker image prune -f
