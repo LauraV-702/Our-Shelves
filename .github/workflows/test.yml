@@ -33,27 +33,31 @@ jobs:
     needs: unit-tests
 
     steps:
-      - uses: actions/checkout@v4
+        - uses: actions/checkout@v4
 
-      # Start database + backend + frontend
-      - name: Start full stack
-        run: docker compose up -d --build
+        # Start full stack
+        - name: Start backend + frontend + db
+          run: docker compose up -d --build
 
-      - name: Show running services
-        run: docker compose ps
+        # Show running services
+        - name: Show running services
+          run: docker compose ps
 
-      # Run integration tests on the host (not inside container)
-      - name: Run Integration tests
-        run: |
-          cd backend
-          npm install
-          npm run test:integration
+        # Run Integration tests on host
+        - name: Run Integration tests
+          run: |
+            cd backend
+            npm install
+            npm run test:integration
 
-      # Run E2E tests inside frontend container
-      - name: Run E2E tests
-        run: docker compose run --rm frontend npm run cypress:run
+        # Run E2E tests on host
+        - name: Run E2E tests (Cypress)
+          run: |
+            cd frontend
+            npm install
+            npm run cypress:run
 
-      # Stop all services
-      - name: Stop all services
-        if: always()
-        run: docker compose down
+        # Stop all services
+        - name: Stop all services
+          if: always()
+          run: docker compose down
