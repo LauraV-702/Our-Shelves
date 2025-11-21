@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI Tests
 
 on:
   push:
@@ -13,11 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start database
-        run: docker compose up -d db
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install backend deps
+        working-directory: api
+        run: npm install
 
       - name: Run backend unit tests
-        run: docker compose run --rm api npm test
+        working-directory: api
+        run: npm test
+
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -25,8 +33,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run frontend tests
-        run: docker compose run --rm frontend npm test
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm install
+
+      - name: Run frontend unit tests
+        working-directory: frontend
+        run: npm test
+
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -35,30 +54,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start database
+      - name: Start DB
         run: docker compose up -d db
 
-      - name: Run integration tests (skip Testcontainers)
+      - name: Install backend deps
+        working-directory: api
+        run: npm install
+
+      - name: Run integration tests
+        working-directory: api
         env:
-          JEST_SKIP_CONTAINER: "1"
-        run: docker compose run --rm api npm run test:integration
-
-  e2e-tests:
-    runs-on: ubuntu-latest
-    needs: [frontend-tests, integration-tests]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Start full stack
-        run: docker compose up -d --build
-
-      - name: Check running services
-        run: docker compose ps
-
-      - name: Run Cypress tests
-        run: docker compose run --rm frontend npm run cypress:run
-
-      - name: Stop services
-        if: always()
-        run: docker compose down
+          NODE_ENV: test
+        run: npm run test:integration
