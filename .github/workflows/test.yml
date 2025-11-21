@@ -27,7 +27,6 @@ jobs:
       - name: Run frontend tests
         run: docker compose run --rm frontend npm test
 
-
   # ----------- STAGE 2: Integration + E2E Tests -----------
   integration-and-e2e:
     runs-on: ubuntu-latest
@@ -36,18 +35,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Start database + backend + frontend
       - name: Start full stack
         run: docker compose up -d --build
 
-      - name: Show services
+      - name: Show running services
         run: docker compose ps
 
+      # Run integration tests on the host (not inside container)
       - name: Run Integration tests
-        run: docker compose run --rm api npm run test:integration
+        run: |
+          cd backend
+          npm install
+          npm run test:integration
 
+      # Run E2E tests inside frontend container
       - name: Run E2E tests
         run: docker compose run --rm frontend npm run cypress:run
 
+      # Stop all services
       - name: Stop all services
         if: always()
         run: docker compose down
