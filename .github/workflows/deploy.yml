@@ -40,4 +40,10 @@ jobs:
             docker compose up -d --build
         
             echo "Deployment complete!"
-            EOF
+
+      - name: Verify deployment
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+            echo "Checking running containers..."
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          EOF
