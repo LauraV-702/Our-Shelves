@@ -1,0 +1,43 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches: [ main ]   # deploy ONLY when main gets updated
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Deploy to VM via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+            cd /var/www/our-shelves || exit
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Installing backend dependencies..."
+            cd backend
+            npm install --production
+
+            echo "Installing frontend dependencies..."
+            cd ../frontend
+            npm install --production
+
+            echo "Restarting Docker..."
+            cd ..
+            docker compose down
+            docker compose up -d --build
+
+            echo "Deployment complete!"
+          EOF
