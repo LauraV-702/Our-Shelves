@@ -20,24 +20,24 @@ jobs:
 
       - name: Deploy to VM via SSH
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+            ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
             cd /var/www/our-shelves || exit
-
+        
             echo "Pulling latest code..."
             git pull origin main
-
+        
             echo "Installing backend dependencies..."
             cd backend
             npm install --production
-
+        
             echo "Installing frontend dependencies..."
             cd ../frontend
             npm install --production
-
+        
             echo "Restarting Docker..."
             cd ..
             docker compose down
             docker compose up -d --build
-
+        
             echo "Deployment complete!"
-          EOF
+            EOF
