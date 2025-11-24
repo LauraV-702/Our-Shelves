@@ -340,14 +340,12 @@ docker compose down
 - Confirm no leading spaces in env variables
 - Check firewall settings if deploying to a remote server (allow ports 3000 and 5173).
 
----
+## CI/CD Pipeline
 
-## License
-This project is for educational use as part of a student project at Green River College.
+This project uses GitHub Actions to automatically run tests on pull requests and pushes to `main` and `auto-test-pipline` branches. The workflow runs:
 
-### CI/CD Pipeline
-
-This project uses GitHub Actions to automatically run tests on pull requests and pushes to `main` and `dev` branches. The workflow runs:
+### Workflow Location
+`./github/workflows/test.yml`
 
 STAGE 1:
 - Backend unit tests
@@ -358,3 +356,35 @@ STAGE 2:
 - End-to-end (Cypress) tests
 
 Test results are visible in the GitHub Actions tab.
+
+
+## Automated Deployment
+
+Our project uses **GitHub Actions** to deploy to the production VM **every time changes are merged or pushed to the `main` branch**.
+
+### Workflow Location
+`./github/workflows/deploy.yml`
+
+### 🔧 What the Deployment Workflow Does
+When the workflow is triggered, GitHub Actions will:
+
+1. Connect to the VM using SSH  
+2. Pull the latest code from GitHub  
+3. Install backend and frontend dependencies  
+4. Rebuild and restart Docker containers  
+5. Verify that the application containers are running successfully  
+
+
+## Required GitHub Secrets
+
+These must be configured in:  
+**Settings → Secrets and variables → Actions**
+
+| Secret Name | Description |
+|-------------|-------------|
+| `VM_HOST` | Public IP address of the server |
+| `VM_USER` | SSH username (usually `root`) |
+| `VM_KEY` | Private SSH key for VM access |
+
+## License
+This project is for educational use as part of a student project at Green River College.
